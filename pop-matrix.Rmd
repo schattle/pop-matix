@@ -1,0 +1,89 @@
+---
+title: "Rabbits and Hawks"
+author: "Lizzy Schattle and Gabe De La Rosa"
+date: "5/17/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+library(tidyverse)
+
+
+# Leslie Matrix
+
+# 4 age groups
+nclasses = 4
+
+# create a growth matrix to store fertility and survivability information
+gmatrix=matrix(nrow=nclasses, ncol=nclasses)
+gmatrix
+
+# change NAs to zero
+gmatrix[]=0.0
+gmatrix
+
+# assign values for fertility for each of the age classes 
+# notes that fertility rates are births per capita (number in class) per
+# time step - time step here is decade - but could be hours - why?
+fert =  c(0, 2, 6, 1)
+
+# enter into our matrix
+ gmatrix[1,]=fert
+ 
+ # now add survivability 
+ # survivability (to the next class) is also per time step
+gmatrix[2,1]=0.8
+gmatrix[3,2]=0.85
+gmatrix[4,3]=0.65
+
+# we als want to to account for the oldest population group - they don't transfer to another group
+# but they do die - this will be survivability per time step but they just stay in their class/group
+gmatrix[4,4]=0.1
+
+gmatrix
+
+```
+
+
+```{r}
+
+
+# start with an initial population, lets say 1 individual in each class
+
+p0 = rep(0, 0, 0, 10)
+
+# advance to the next time step
+# note the use of matrix multiplication
+
+p1 = gmatrix %*% p0
+p1
+
+# has the total number of individuals changed?
+
+sum(p1)
+sum(p0)
+
+# growth rate
+sum(p1)/sum(p0)
+
+#add another year
+p2 = gmatrix %*% p1
+
+# combined
+pop = cbind.data.frame(p0,p1,p2)
+pop$age = c("Young","Sub-Adult","Adult","Aged")
+
+popl = pop %>% gather(key="timestep",value="pop",-age)
+ggplot(popl, aes(timestep, pop,fill=as.factor(age)))+geom_col(position="dodge")+labs(fill="Age Group")
+```
+
+
+
+
+
+
