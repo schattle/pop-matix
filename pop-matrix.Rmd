@@ -9,11 +9,10 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+
+
 ```{r}
-
 library(tidyverse)
-
-
 # Leslie Matrix
 
 # 4 age groups
@@ -41,7 +40,7 @@ gmatrix[2,1]=0.8
 gmatrix[3,2]=0.85
 gmatrix[4,3]=0.65
 
-# we als want to to account for the oldest population group - they don't transfer to another group
+# we als0 want to to account for the oldest population group - they don't transfer to another group
 # but they do die - this will be survivability per time step but they just stay in their class/group
 gmatrix[4,4]=0.1
 
@@ -51,20 +50,14 @@ gmatrix
 
 
 ```{r}
-
-
-# start with an initial population, lets say 1 individual in each class
-
-p0 = rep(0, 0, 0, 10)
+# start with an initial population, lets say 10 adults
+p0 = c(0, 0, 10, 0)
 
 # advance to the next time step
-# note the use of matrix multiplication
-
 p1 = gmatrix %*% p0
 p1
 
 # has the total number of individuals changed?
-
 sum(p1)
 sum(p0)
 
@@ -73,6 +66,8 @@ sum(p1)/sum(p0)
 
 #add another year
 p2 = gmatrix %*% p1
+
+
 
 # combined
 pop = cbind.data.frame(p0,p1,p2)
