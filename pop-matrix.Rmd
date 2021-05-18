@@ -6,10 +6,8 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
-
-
 
 ```{r}
 library(tidyverse)
@@ -29,8 +27,7 @@ gmatrix[]=0.0
 gmatrix
 
 # assign values for fertility for each of the age classes 
-# notes that fertility rates are births per capita (number in class) per
-# time step - time step here is decade - but could be hours - why?
+# notes that fertility rates are rabbits/female
 fert =  c(0, 2, 6, 1)
 
 # enter into our matrix
@@ -42,7 +39,7 @@ gmatrix[2,1]=0.8
 gmatrix[3,2]=0.85
 gmatrix[4,3]=0.65
 
-# we als0 want to to account for the oldest population group - they don't transfer to another group
+# we also want to to account for the oldest population group - they don't transfer to another group
 # but they do die - this will be survivability per time step but they just stay in their class/group
 gmatrix[4,4]=0.1
 
@@ -150,22 +147,37 @@ p4 = 0.1
 
 # create our two samples for Sobel
 # first do our survivability
-ps1 = cbind.data.frame(p1=runif(min=0.65, max=0.75, n=nsample), p2 = runif(min=0.75, max=0.8, n=nsample),
-                       p3 = p3, p4 = p4)
+ps1 = cbind.data.frame(p1=runif(min=0.65, max=0.75, n=nsample), 
+                       p2 = runif(min=0.75, max=0.8, n=nsample),
+                       p3 = p3, 
+                       p4 = p4)
 
-ps2 = cbind.data.frame(p1=runif(min=0.65, max=0.75, n=nsample), p2 = runif(min=0.75, max=0.8, n=nsample),
-                       p3 = p3, p4 = p4)
+ps2 = cbind.data.frame(p1=runif(min=0.65, max=0.75, n=nsample), 
+                       p2 = runif(min=0.75, max=0.8, n=nsample),
+                       p3 = p3, 
+                       p4 = p4)
+
+fs1 = cbind.data.frame(F1 = F1,
+                       F2 = F2,
+                       F3 = F3,
+                       F4 = F4)
+
+totalps1 = cbind.data.frame(ps1, fs1)
+totalps2 = cbind.data.frame(ps2, fs1)
 
 
-sens_micro=soboljansen(model = NULL, ps1, ps2, nboot = 100)
+sens_rabbit=soboljansen(model = NULL, totalps1, totalps2, nboot = 100)
+
+head(sens_rabbit$x)
+nsim=nrow(sens_rabbit$X)
 
 # Input other parameters from above:
 ini = c(0, 0, 10, 0)
 nyears = 20
-fert = c(F1,F2,F3,F4)
+fert = c(F1, F2, F3, F4)
 
 # Use wrapper function: this lets us pmap our function over all param combos
-p_wrapper = function(p1, p2, p3, p4, fert, use_func, initialpop, nstep){
+p_wrapper = function(p1, p2, p3, p4, F1, F2, F3, F4, use_func, initialpop, nstep){
   fertility = fert
   survivability= c(p1, p2, p3, p4)
   
@@ -181,22 +193,37 @@ p_wrapper = function(p1, p2, p3, p4, fert, use_func, initialpop, nstep){
 
 # pmap the wrapper function over the sobel df:
 
-res = as.data.frame(sens_micro$X) %>% pmap_dbl(p_wrapper, fert = fert, initialpop=ini, nstep=nyears, use_func=evolve_pop)
+res = as.data.frame(sens_rabbit$X) %>% 
+  pmap_dbl(p_wrapper, initialpop=ini, nstep=nyears, use_func=evolve_pop)
 
-ggplot(data.frame(finalpop=res), aes(x=finalpop))+geom_density()
+
+ggplot(data.frame(finalpop=res), aes(x=finalpop)) + geom_density()
 
 ggplot(data.frame(finalpop=res), aes(x="", y=finalpop/1000) )+geom_boxplot(fill="blue")+
   theme(axis.title.x = element_blank())+labs(y="Final Pop (in 1000s)")
 
-sens_micro=tell(sens_micro, res)
+sens_rabbit=tell(sens_rabbit, res)
 
 # loot at results
-sens_micro$S
-sens_micro$T
+sens_rabbit$S
+sens_rabbit$T
 
 # graph the most sensitive parameter
-tmp = cbind.data.frame(sens_micro$X, pop12=sens_micro$y)
-ggplot(tmp, aes(p1, pop12))+geom_point()+labs(x="Survivability of 1 to older",y="pop after 12 months")
+tmp = cbind.data.frame(sens_rabbit$X, pop12=sens_rabbit$y)
+ggplot(tmp, aes(p1, pop12))+geom_point()+labs(x="Survivability of Young",y="Pop after 20 Years")
+
+#p young
+tmp_p1 <- tmp %>%
+  mutate(p1 = round(p1, digits = 2)) %>% 
+  group_by(p1) %>% 
+  summarise(pop = mean(pop12))
+
+#p sub adult
+tmp_p2 <- tmp %>%
+  mutate(p2 = round(p2, digits = 2)) %>% 
+  group_by(p2) %>% 
+  summarise(pop = mean(pop12))
+
 
 ```
 
