@@ -13,6 +13,8 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 library(tidyverse)
+library(sensitivity)
+
 # Leslie Matrix
 
 # 4 age groups
@@ -78,7 +80,123 @@ ggplot(popl, aes(timestep, pop,fill=as.factor(age)))+geom_col(position="dodge")+
 ```
 
 
+# I think this is where we need to start:
+
+### Run rabbit leslie matrix for 20 years:
+```{r multitime}
+
+source("./evolve_pop.R")
+
+# rabbit fertility rates
+F1 = 0.0
+F2 = 2
+F3 = 6
+F4 = 1
+
+# survivability 
+p1 = 0.8
+p2 = 0.85
+p3 = 0.65
+p4 = 0.1
 
 
+# initial population parameters
+ini = c(0, 0, 10, 0)
+nyears = 20
+fert = c(F1,F2,F3,F4)
+surv = c(p1, p2, p3, p4)
+rabbit_pop=evolve_pop(fert, surv, ini, nyears)
 
+head(rabbit_pop)
+
+# graph differnt components of the output
+# total population
+
+# add decade 
+decade = seq(from=1, to=nyears)
+rabbit_tot = cbind.data.frame(decade=decade, poptot=rabbit_pop$poptot)
+ggplot(rabbit_tot, aes(decade, poptot))+geom_col()+labs(y="Total Popultation")
+
+# plot information about ages
+rabbit_ages = cbind.data.frame(decade=decade, t(rabbit_pop$popbyage))
+rabbit_agesl = rabbit_ages %>% gather(key="agecat", value="pop",-decade)
+ggplot(rabbit_agesl, aes(decade, pop, fill=agecat))+geom_col()+labs(y="Population", fill="Age Group")
+
+
+# Pull out the total population at year 20
+total_rabbit_y20 <- tail(rabbit_tot$poptot, 1)
+# Pull out the young at year 20
+total_young_y20 <- rabbit_agesl %>% 
+  filter(decade == 20, agecat == 1) %>% 
+  select(pop)
+```
+
+After 20 years, the rabbit population is `r total_rabbit_y20`. The young population is `r total_young_y20$pop`.
+
+### Rabbit Sensitivity to Hawk Predation:
+
+```{r}
+# Run a sobel on young  and sub adult age class survival:
+# This is p1 and p2.
+
+
+# survivability - based on mortality rates per thousand per decade
+nsample=200
+
+p1 = 0.8
+p2 = 0.85
+p3 = 0.65
+p4 = 0.1
+
+# create our two samples for Sobel
+# first do our survivability
+ps1 = cbind.data.frame(p1=runif(min=0.65, max=0.75, n=nsample), p2 = runif(min=0.75, max=0.8, n=nsample),
+                       p3 = p3, p4 = p4)
+
+ps2 = cbind.data.frame(p1=runif(min=0.65, max=0.75, n=nsample), p2 = runif(min=0.75, max=0.8, n=nsample),
+                       p3 = p3, p4 = p4)
+
+
+sens_micro=soboljansen(model = NULL, ps1, ps2, nboot = 100)
+
+# Input other parameters from above:
+ini = c(0, 0, 10, 0)
+nyears = 20
+fert = c(F1,F2,F3,F4)
+
+# Use wrapper function: this lets us pmap our function over all param combos
+p_wrapper = function(p1, p2, p3, p4, fert, use_func, initialpop, nstep){
+  fertility = fert
+  survivability= c(p1, p2, p3, p4)
+  
+  res = use_func(survivability =survivability, fertility = fertility, initialpop=initialpop, nstep=nstep)
+  # now return the final population total
+  return(finalpop=res$poptot[nstep])
+}
+
+###
+###    Do we need to do a sobel for each individual parameter? Or does doing both of them together work?
+###
+###
+
+# pmap the wrapper function over the sobel df:
+
+res = as.data.frame(sens_micro$X) %>% pmap_dbl(p_wrapper, fert = fert, initialpop=ini, nstep=nyears, use_func=evolve_pop)
+
+ggplot(data.frame(finalpop=res), aes(x=finalpop))+geom_density()
+
+ggplot(data.frame(finalpop=res), aes(x="", y=finalpop/1000) )+geom_boxplot(fill="blue")+
+  theme(axis.title.x = element_blank())+labs(y="Final Pop (in 1000s)")
+
+sens_micro=tell(sens_micro, res)
+
+# loot at results
+sens_micro$S
+sens_micro$T
+
+# graph the most sensitive parameter
+tmp = cbind.data.frame(sens_micro$X, pop12=sens_micro$y)
+ggplot(tmp, aes(p1, pop12))+geom_point()+labs(x="Survivability of 1 to older",y="pop after 12 months")
+
+```
 
